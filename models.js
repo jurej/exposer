@@ -132,6 +132,11 @@ postSchema.statics.fetchFacebookEvent = function (post_id, cb) {
 };
 
 postSchema.statics.storeTweet = function (tweet, source, cb) {
+    if (!tweet.from_user && !(tweet.user && tweet.user.screen_name)) {
+        cb("Invalid tweet: " + util.inspect(tweet));
+        return;
+    }
+
     var data = {
         'from_user': tweet.from_user || tweet.user.screen_name,
         'in_reply_to_status_id': tweet.in_reply_to_status_id,
@@ -568,8 +573,7 @@ postSchema.methods.fetchFacebookEvent = function (cb) {
                             }
 
                             facebook_event = facebook_event.toObject();
-                            facebook_event.fetch_timestamp = facebook_event._id.getTimestamp();
-                            delete facebook_event._id;
+                            facebook_event = FacebookEvent.cleanEvent(facebook_event);
 
                             post.facebook_event_id = facebook_event.event_id;
                             post.save(function (err, obj) {
@@ -578,8 +582,7 @@ postSchema.methods.fetchFacebookEvent = function (cb) {
                                     return;
                                 }
 
-                                // TODO: Do we really want to return all data?
-                                cb(null, _.pick(facebook_event, 'event_id', 'data', 'invited_summary', 'fetch_timestamp'));
+                                cb(null, facebook_event);
                             });
                         });
                     });
@@ -620,9 +623,28 @@ var facebookEventSchema = mongoose.Schema({
     }
 });
 
+facebookEventSchema.statics.PUBLIC_FIELDS = {
+    'event_id': true,
+    'data': true,
+    'invited_summary': true
+};
+
 facebookEventSchema.statics.URL_REGEXP = /facebook\.com\/events\/(\d+)/i; // Case-insensitive because domain name can be case insensitive
 
 facebookEventSchema.statics.LINK_REGEXP = /^\/events\/(\d+)\/$/;
+
+// TODO: Do we really want to return all data?
+facebookEventSchema.statics.cleanEvent = function (event) {
+    event.fetch_timestamp = event._id.getTimestamp();
+    delete event._id;
+
+    var public_fields = _.keys(FacebookEvent.PUBLIC_FIELDS);
+    public_fields.push('fetch_timestamp');
+
+    event = _.pick(event, public_fields);
+
+    return event;
+};
 
 facebookEventSchema.methods.postFetch = function (cb) {
     var event = this;
@@ -637,7 +659,7 @@ facebookEventSchema.methods.postFetch = function (cb) {
             // Whether we got it from "tagged" or "taggedalt" source or we have a tag in the message
             return _.indexOf(post.sources, 'tagged') !== -1 || _.indexOf(post.sources, 'taggedalt') !== -1 || _.some(post.data.message_tags || {}, function (tags) {
                 return _.some(tags, function (tag) {
-                    return tag.id === settings.FACEBOOK_PAGE_ID;
+                    return settings.FACEBOOK_PAGE_ID && tag.id === settings.FACEBOOK_PAGE_ID;
                 });
             });
         });

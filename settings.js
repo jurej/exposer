@@ -26,11 +26,13 @@ exports.FACEBOOK_THROTTLE = {
     'interval': 600 * 1000 // ms
 };
 
+// TODO: Extend to all sections, to be able to enable/disable them, maybe with simply a list of section names to be shown
+exports.SHOW_LINKS = !_.isUndefined(process.env.SHOW_LINKS) ? process.env.SHOW_LINKS : true;
 exports.SECRET = process.env.SECRET || 'secret';
-exports.TARGET_LANGUAGE = 'slovene'; // Posts in which language we target
-exports.I18N_LANGUAGES = ['en', 'sl']; // Which interface languages users can choose among
-exports.TWITTER_QUERY = ['#gotofje', '#gotofsi', '#protesti', '@gotofsi', '@gotofje', '#gotoviso', '#mbprotest', '#ljprotest', '#kkprotest', '#ceprotest', '#fertikje', '#demonstracije', '#zbor', '#nisegotovo', '#malomorgen', '#politikasi', '#volitve', '#vstaja', '#zborzarepubliko', '#korupcija', '#jansa', '#jansevanje', '#pahor', '#stavkajs', '#stavka', '#javnisektor', '#onlyinslovenia', '#sviz', '#zombiji'];
-exports.FACEBOOK_QUERY = ['gotofje', 'gotofsi', 'protesti', 'gotoviso', 'mbprotest', 'ljprotest', 'kkprotest', 'ceprotest', 'fertikje', 'demonstracije', 'nisegotovo', 'malomorgen', 'politikasi', 'zborzarepubliko', 'jansevanje', 'stavkajs', 'javnisektor', 'onlyinslovenia'];
+exports.TARGET_LANGUAGE = process.env.TARGET_LANGUAGE || 'slovene'; // Posts in which language we target
+exports.I18N_LANGUAGES = process.env.I18N_LANGUAGES ? process.env.I18N_LANGUAGES.split(',') : ['en', 'sl']; // Which interface languages users can choose among
+exports.TWITTER_QUERY = process.env.TWITTER_QUERY ? process.env.TWITTER_QUERY.split(',') : ['#gotofje', '#gotofsi', '#protesti', '@gotofsi', '@gotofje', '#gotoviso', '#mbprotest', '#ljprotest', '#kkprotest', '#ceprotest', '#fertikje', '#demonstracije', '#zbor', '#nisegotovo', '#malomorgen', '#politikasi', '#volitve', '#vstaja', '#zborzarepubliko', '#korupcija', '#jansa', '#jansevanje', '#pahor', '#stavkajs', '#stavka', '#javnisektor', '#onlyinslovenia', '#sviz', '#zombiji', '#tribunacd', '#tribunadsp', '#policijskadrzava', '#ograjamorapasti'];
+exports.FACEBOOK_QUERY = process.env.FACEBOOK_QUERY ? process.env.FACEBOOK_QUERY.split(',') : ['gotofje', 'gotofsi', 'protesti', 'gotoviso', 'mbprotest', 'ljprotest', 'kkprotest', 'ceprotest', 'fertikje', 'demonstracije', 'nisegotovo', 'malomorgen', 'politikasi', 'zborzarepubliko', 'jansevanje', 'stavkajs', 'javnisektor', 'onlyinslovenia'];
 exports.POSTS_FILTER = {
     'data.from.id': {'$nin': [
         // Henrik Grubelnik (https://www.facebook.com/henrik.grubelnik) overposting

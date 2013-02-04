@@ -108,9 +108,11 @@ app.use(express.bodyParser());
 app.use(express.static(__dirname + '/static'));
 app.use(i18next.handle);
 
+i18next.serveClientScript(app).serveDynamicResources(app);
+
 if (app.get('env') !== 'production') {
     // TODO: Set sendMissing to true on the client side, if not in the production
-    i18next.serveDynamicResources(app).serveMissingKeyRoute(app).serveChangeKeyRoute(app).serveRemoveKeyRoute(app);
+    i18next.serveMissingKeyRoute(app).serveChangeKeyRoute(app).serveRemoveKeyRoute(app);
 
     i18next.serveWebTranslate(app, {
         'path': '/i18next',
@@ -131,7 +133,7 @@ app.get('/', function (req, res) {
     var translations = {
         'section': {
             'stream': {
-                'twitter-hashtag': '<tt>' + settings.TWITTER_QUERY[0] + '</tt>',
+                'twitter-hashtag': settings.TWITTER_QUERY[0] ? '<tt>' + settings.TWITTER_QUERY[0] + '</tt>' : null,
                 'facebook-page-name': settings.FACEBOOK_PAGE_NAME
             },
             'links': {
@@ -139,18 +141,29 @@ app.get('/', function (req, res) {
             }
         }
     };
-    translations.section.stream['facebook-page-link'] = '<a href="https://www.facebook.com/pages/' + settings.FACEBOOK_PAGE_NAME + '/' + settings.FACEBOOK_PAGE_ID + '" title="' + req.i18n.t("section.stream.facebook-page", translations) + '"><tt>@' + settings.FACEBOOK_PAGE_NAME.toLowerCase() + '</tt></a>';
+    translations.section.stream['facebook-page-link'] = null;
+    if (settings.FACEBOOK_PAGE_NAME && settings.FACEBOOK_PAGE_ID) {
+        translations.section.stream['facebook-page-link'] = '<a href="https://www.facebook.com/pages/' + settings.FACEBOOK_PAGE_NAME + '/' + settings.FACEBOOK_PAGE_ID + '" title="' + req.i18n.t("section.stream.facebook-page", translations) + '"><tt>@' + settings.FACEBOOK_PAGE_NAME.toLowerCase() + '</tt></a>';
+    }
     var languages = _.map(settings.I18N_LANGUAGES, function (language, i, eval) {
         return {
             'name': language,
             'native': req.i18n.t("languages." + language, {'lng': language}),
             'translated': req.i18n.t("languages." + language),
             'current': req.language == language
-        }
+        };
     });
+    languages.current = req.language;
     res.render('index', {
         'REMOTE': settings.REMOTE,
         'FACEBOOK_APP_ID': settings.FACEBOOK_APP_ID,
+        'FACEBOOK_PAGE_ID': settings.FACEBOOK_PAGE_ID,
+        'FACEBOOK_PAGE_NAME': settings.FACEBOOK_PAGE_NAME,
+        'TWITTER_ENABLED': !!settings.TWITTER_QUERY[0],
+        'TWITTER_MORE': settings.TWITTER_QUERY.length > 1,
+        'FACEBOOK_ENABLED': !!settings.FACEBOOK_PAGE_NAME,
+        'FACEBOOK_MORE': settings.FACEBOOK_QUERY.length > 0,
+        'SHOW_LINKS': !!settings.SHOW_LINKS,
         'SITE_URL': settings.SITE_URL,
         'languages': languages,
         'translations': translations
@@ -243,7 +256,7 @@ var sock = shoe(function (stream) {
                     post = models.Post.cleanPost(post);
 
                     if (post.facebook_event_id) {
-                        models.FacebookEvent.findOne({'event_id': post.facebook_event_id}, {'event_id': true, 'data': true, 'invited_summary': true}).lean(true).exec(function (err, event) {
+                        models.FacebookEvent.findOne({'event_id': post.facebook_event_id}, models.FacebookEvent.PUBLIC_FIELDS).lean(true).exec(function (err, event) {
                             if (err) {
                                 console.error("getPosts error: %s", err);
                                 // TODO: Do we really want to pass an error about accessing the database to the client?
@@ -259,8 +272,7 @@ var sock = shoe(function (stream) {
                                 return;
                             }
 
-                            event.fetch_timestamp = event._id.getTimestamp();
-                            delete event._id;
+                            event = models.FacebookEvent.cleanEvent(event);
 
                             post.facebook_event = event;
                             delete post.facebook_event_id;
@@ -405,6 +417,26 @@ var sock = shoe(function (stream) {
 
                 cb(null, stats);
             });
+        },
+        'getEvents': function (cb) {
+            if (!cb) {
+                return;
+            }
+
+            models.FacebookEvent.find({}, models.FacebookEvent.PUBLIC_FIELDS).lean(true).exec(function (err, events) {
+                if (err) {
+                    console.error("getEvents error: %s", err);
+                    // TODO: Do we really want to pass an error about accessing the database to the client?
+                    cb(err);
+                    return;
+                }
+
+                events = _.map(events, function (event, i, list) {
+                    return models.FacebookEvent.cleanEvent(event);
+                });
+
+                cb(null, events);
+            });
         }
     });
     d.on('remote', function (remote, d) {
@@ -541,6 +573,10 @@ function fetchFacebookLatest(limit) {
 }
 
 function fetchFacebookPageLatest(limit) {
+    if (!settings.FACEBOOK_PAGE_ID) {
+        return;
+    }
+
     console.log("Doing Facebook page fetch");
 
     facebook.request(settings.FACEBOOK_PAGE_ID + '/tagged', limit, function (err, body) {
@@ -562,6 +598,10 @@ function fetchFacebookPageLatest(limit) {
 }
 
 function fetchFacebookPageLatestAlternative() {
+    if (!settings.FACEBOOK_PAGE_ID) {
+        return;
+    }
+
     console.log("Doing Facebook page alternative fetch");
 
     request({
@@ -721,6 +761,10 @@ function subscribeToFacebook(err) {
 }
 
 function enableFacebookStream() {
+    if (!settings.FACEBOOK_PAGE_ID) {
+        return;
+    }
+
     addAppToFacebookPage(subscribeToFacebook);
 }
 

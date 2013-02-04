@@ -17,16 +17,17 @@ var twit = new twitter({
     'access_token_secret': settings.TWITTER_ACCESS_TOKEN_SECRET
 });
 
-var max_id = process.argv.length > 2 ? process.argv[2] : null;
+var maxId = process.argv.length > 2 ? process.argv[2] : null;
 var count = 0;
 var date = null;
+var errorCount = 0;
 
 function next() {
     if (!date) {
         date = moment();
     }
     date.subtract('days', 1);
-    max_id = null;
+    maxId = null;
     if (moment() - date > 14 * 24 * 60 * 60 * 1000) { // 14 days
         process.exit(0);
     }
@@ -36,14 +37,23 @@ function next() {
 }
 
 function loadtweets() {
-    var params = {'include_entities': true, 'count': 100, 'max_id': max_id, 'q': settings.TWITTER_QUERY.join(' OR ') + (date ? ' until:' + date.format('YYYY-MM-DD') : '')};
-    console.log("Making request, max_id = %s, date = %s", max_id, date);
+    var params = {'include_entities': true, 'count': 100, 'max_id': maxId, 'q': settings.TWITTER_QUERY.join(' OR ') + (date ? ' until:' + date.format('YYYY-MM-DD') : '')};
+    console.log("Making request, max_id = %s, date = %s", maxId, date);
     twit.get('/search/tweets.json', params, function(err, data) {
         if (err) {
-            console.error("Twitter fetch error", err);
-            process.exit(1);
+            if ((err.statusCode === 500 || err.statusCode === 503) && errorCount < 3) {
+                console.error("Twitter fetch error, retrying", err);
+                errorCount++;
+                setTimeout(loadtweets, LOAD_INTERVAL);
+            }
+            else {
+                console.error("Twitter fetch error", err);
+                process.exit(1);
+            }
             return;
         }
+
+        errorCount = 0;
 
         if (data.statuses.length === 0) {
             console.log("%s new tweets fetched overall", count);
@@ -74,7 +84,7 @@ function loadtweets() {
                 return;
             }
 
-            max_id = max_id_match[1];
+            maxId = max_id_match[1];
 
             setTimeout(loadtweets, LOAD_INTERVAL);
         });
